@@ -27,6 +27,10 @@ MiniByterAudioProcessor::createParameterLayout()
         "wetDry", "Wet/Dry",
         juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 1.0f));
 
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        "pitchDepth", "Pitch Depth",
+        juce::NormalisableRange<float>(0.0f, 12.0f, 0.1f), 0.0f));
+
     layout.add(std::make_unique<juce::AudioParameterBool>(
         "bypass", "Bypass", false));
 
@@ -95,6 +99,18 @@ void MiniByterAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     this->sampleRate = sampleRate;
     heldSample.fill(0.0f);
     counter.fill(0.0f);
+
+    // Hardcoded envelope times: 1ms attack, 80ms release
+    envAttackCoeff  = std::exp(-1.0f / (float)(0.001 * sampleRate));
+    envReleaseCoeff = std::exp(-1.0f / (float)(0.080 * sampleRate));
+
+    for (auto& buf : pitchBuffer)
+        buf.fill(0.0f);
+    pitchWritePos.fill(0);
+    // Start read pointer 2048 samples behind write so we have headroom
+    pitchReadPos[0] = (float)(PITCH_BUF_SIZE - 2048);
+    pitchReadPos[1] = (float)(PITCH_BUF_SIZE - 2048);
+    envelope.fill(0.0f);
 }
 
 void MiniByterAudioProcessor::releaseResources() {}
@@ -127,10 +143,11 @@ void MiniByterAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    bool  bypass    = audioValueTree.getRawParameterValue("bypass")->load();
-    float bitDepth  = audioValueTree.getRawParameterValue("bitDepth")->load();
-    float targetSR  = audioValueTree.getRawParameterValue("sampleRate")->load();
-    float wetDry    = audioValueTree.getRawParameterValue("wetDry")->load();
+    bool  bypass     = audioValueTree.getRawParameterValue("bypass")->load();
+    float bitDepth   = audioValueTree.getRawParameterValue("bitDepth")->load();
+    float targetSR   = audioValueTree.getRawParameterValue("sampleRate")->load();
+    float wetDry     = audioValueTree.getRawParameterValue("wetDry")->load();
+    float pitchDepth = audioValueTree.getRawParameterValue("pitchDepth")->load();
 
     if (bypass) return;
 
@@ -138,27 +155,54 @@ void MiniByterAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     float stepSize = 2.0f / steps;
     float holdTime = (float)sampleRate / targetSR;
 
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    for (int ch = 0; ch < totalNumInputChannels; ++ch)
     {
-        auto* channelData = buffer.getWritePointer(channel);
+        auto* channelData = buffer.getWritePointer(ch);
 
         for (int n = 0; n < buffer.getNumSamples(); ++n)
         {
             float dry = channelData[n];
 
-            // sample rate reduction
-            counter[channel] += 1.0f;
-            if (counter[channel] >= holdTime)
-            {
-                counter[channel] -= holdTime;
-                heldSample[channel] = channelData[n];
-            }
-            float wet = heldSample[channel];
+            // --- Pitch modulation via amplitude-driven resampling ---
+            // Write input into circular pitch buffer
+            pitchBuffer[ch][pitchWritePos[ch]] = channelData[n];
+            pitchWritePos[ch] = (pitchWritePos[ch] + 1) % PITCH_BUF_SIZE;
 
-            // bit depth reduction
+            // Envelope follower: fast attack, slow release to track transient peaks
+            float level = std::abs(channelData[n]);
+            if (level > envelope[ch])
+                envelope[ch] = envAttackCoeff  * envelope[ch] + (1.0f - envAttackCoeff)  * level;
+            else
+                envelope[ch] = envReleaseCoeff * envelope[ch] + (1.0f - envReleaseCoeff) * level;
+
+            // Map envelope → pitch shift: peaks drive pitch up by up to pitchDepth semitones
+            float semitones = pitchDepth * envelope[ch];
+            float rate      = std::pow(2.0f, semitones / 12.0f);
+
+            // Advance read pointer at modulated rate, then interpolate
+            pitchReadPos[ch] += rate;
+            if (pitchReadPos[ch] >= PITCH_BUF_SIZE)
+                pitchReadPos[ch] -= PITCH_BUF_SIZE;
+
+            int   idx0    = (int)pitchReadPos[ch];
+            int   idx1    = (idx0 + 1) % PITCH_BUF_SIZE;
+            float frac    = pitchReadPos[ch] - (float)idx0;
+            float pitched = pitchBuffer[ch][idx0] * (1.0f - frac)
+                          + pitchBuffer[ch][idx1] * frac;
+
+            // --- Sample rate reduction ---
+            counter[ch] += 1.0f;
+            if (counter[ch] >= holdTime)
+            {
+                counter[ch] -= holdTime;
+                heldSample[ch] = pitched;
+            }
+            float wet = heldSample[ch];
+
+            // --- Bit depth reduction ---
             wet = stepSize * std::round(wet / stepSize);
 
-            // wet/dry mix
+            // --- Wet/dry mix ---
             channelData[n] = dry + wetDry * (wet - dry);
         }
     }

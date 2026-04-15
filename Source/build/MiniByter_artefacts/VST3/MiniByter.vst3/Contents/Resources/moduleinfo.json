@@ -1,0 +1,46 @@
+{
+  "Name": "MiniByter",
+  "Version": "1.0.0",
+  "Factory Info": {
+    "Vendor": "HSDX",
+    "URL": "www.hsdx.am",
+    "E-Mail": "",
+    "Flags": {
+      "Unicode": true,
+      "Classes Discardable": false,
+      "Component Non Discardable": false,
+    },
+  },
+  "Classes": [
+    {
+      "CID": "ABCDEF019182FAEB487364784D427974",
+      "Category": "Audio Module Class",
+      "Name": "MiniByter",
+      "Vendor": "HSDX",
+      "Version": "1.0.0",
+      "SDKVersion": "VST 3.8.0",
+      "Sub Categories": [
+        "Fx",
+      ],
+      "Class Flags": 0,
+      "Cardinality": 2147483647,
+      "Snapshots": [
+      ],
+    },
+    {
+      "CID": "ABCDEF011234ABCD487364784D427974",
+      "Category": "Component Controller Class",
+      "Name": "MiniByter",
+      "Vendor": "HSDX",
+      "Version": "1.0.0",
+      "SDKVersion": "VST 3.8.0",
+      "Sub Categories": [
+        "Fx",
+      ],
+      "Class Flags": 0,
+      "Cardinality": 2147483647,
+      "Snapshots": [
+      ],
+    },
+  ],
+}

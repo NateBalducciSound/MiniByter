@@ -1,0 +1,5 @@
+# Hashes of file build rules.
+5dc251ac102f27f3ebc17e296c7f0d28 MiniByter_artefacts/JuceLibraryCode/JuceHeader.h
+cf5dcde491b2b5092e0b84a8323d8fe7 MiniByter_artefacts/JuceLibraryCode/MiniByter_AU/PkgInfo
+868ce20a586f376689db41d5e3e711c0 MiniByter_artefacts/JuceLibraryCode/MiniByter_Standalone/PkgInfo
+54b04914cf473cd1d28fa88caa02c62c MiniByter_artefacts/JuceLibraryCode/MiniByter_VST3/PkgInfo

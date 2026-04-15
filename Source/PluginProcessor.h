@@ -60,6 +60,18 @@ private:
 
     double sampleRate = 44100.0;
 
+    // Sample rate reduction
     std::array<float, 2> heldSample {0.0f, 0.0f};
     std::array<float, 2> counter    {0.0f, 0.0f};
+
+    // Pitch modulation via resampling
+    static constexpr int PITCH_BUF_SIZE = 4096;
+    std::array<std::array<float, PITCH_BUF_SIZE>, 2> pitchBuffer {};
+    std::array<int,   2> pitchWritePos {0, 0};
+    std::array<float, 2> pitchReadPos  {0.0f, 0.0f};
+
+    // Envelope follower (feeds pitch modulation amount)
+    std::array<float, 2> envelope {0.0f, 0.0f};
+    float envAttackCoeff  = 0.0f;  // hardcoded ~1ms
+    float envReleaseCoeff = 0.0f;  // hardcoded ~80ms
 };
